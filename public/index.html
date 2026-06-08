@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infinite Tic-Tac-Toe - Real-time Lobby Matchmaking</title>
+  <meta name="description" content="Play the ultimate Infinite Tic-Tac-Toe. FIFO queue prevents draws and ensures continuous action. Play online with friends or challenge the smart AI!">
+  
+  <!-- Google Fonts for premium feel -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome for standard icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  
+  <!-- Socket.io client library -->
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <!-- Ambient background glow particles -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app-container">
+    <header class="app-header">
+      <h1 class="logo-title">INFINITE <span class="accent-text">TIC-TAC-TOE</span></h1>
+      <div class="header-controls">
+        <button id="mute-btn" class="icon-btn" title="Toggle Sound">
+          <i class="fa-solid fa-volume-high"></i>
+        </button>
+        <button id="rules-btn" class="icon-btn" title="How to Play">
+          <i class="fa-solid fa-circle-question"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- LOBBY SCREEN -->
+      <section id="lobby-screen" class="glass-panel active">
+        <div class="screen-header">
+          <h2>Welcome to the Lobby</h2>
+          <p class="subtitle">Enforced unique usernames, real-time online lists, and direct match invites.</p>
+        </div>
+
+        <!-- USER PROFILE & USERNAME MODIFICATION -->
+        <div class="profile-settings-box">
+          <div class="input-group">
+            <label for="username-input">Your Online Username (Unique)</label>
+            <div class="username-action-wrapper">
+              <div class="input-wrapper">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="username-input" placeholder="Loading name..." maxlength="12">
+              </div>
+              <button id="btn-save-username" class="btn btn-secondary">
+                <i class="fa-solid fa-floppy-disk"></i> Save Name
+              </button>
+            </div>
+            <span id="username-status-msg" class="status-msg"></span>
+          </div>
+        </div>
+
+        <!-- LOCAL MODES CARDS -->
+        <div class="modes-grid">
+          <button id="mode-pass-play" class="mode-card">
+            <div class="mode-icon"><i class="fa-solid fa-users"></i></div>
+            <div class="mode-info">
+              <h3>Pass & Play</h3>
+              <p>Play locally with a friend on the same device.</p>
+            </div>
+          </button>
+
+          <button id="mode-vs-computer" class="mode-card">
+            <div class="mode-icon"><i class="fa-solid fa-robot"></i></div>
+            <div class="mode-info">
+              <h3>Player vs AI</h3>
+              <p>Challenge the smart heuristic computer bot.</p>
+            </div>
+          </button>
+        </div>
+
+        <!-- ONLINE PLAYERS LOBBY LIST -->
+        <div class="online-players-panel active">
+          <div class="separator"><span>Online Players list</span></div>
+          <div class="players-list-header">
+            <span>Name</span>
+            <span>Status / Action</span>
+          </div>
+          <div id="online-players-list" class="players-list-container">
+            <!-- Dynamic listing created in UI.js -->
+            <div class="empty-list-placeholder">
+              <i class="fa-solid fa-users-slash"></i>
+              <p>No other players are online yet. Open another tab to test!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAITING SCREEN (Not used in lobby mode, but kept for screen compatibility) -->
+      <section id="waiting-screen" class="glass-panel">
+        <h2>Lobby Created</h2>
+        <p>Connecting to match...</p>
+        <div class="loading-spinner-wrapper">
+          <div class="spinner"></div>
+          <p>Initializing...</p>
+        </div>
+        <button id="btn-cancel-waiting" class="btn btn-danger">Cancel</button>
+      </section>
+
+      <!-- GAME SCREEN (Grid, Move Logs, Sidebar) -->
+      <section id="game-screen" class="game-layout">
+        <!-- Sidebar - Players details -->
+        <div class="game-sidebar-left">
+          <div class="glass-panel player-panel">
+            <div id="player-x-card" class="player-card active-card player-x">
+              <div class="avatar"><span class="symbol-x-glow">X</span></div>
+              <div class="info">
+                <h3 id="player-x-name">Player X</h3>
+                <span class="active-marks">Active Marks: <span id="player-x-marks-count">0</span>/3</span>
+              </div>
+              <div class="next-to-remove-warning" id="x-warning-badge" style="display:none;">
+                <i class="fa-solid fa-triangle-exclamation"></i> Mark fading
+              </div>
+            </div>
+
+            <div class="versus-divider">VS</div>
+
+            <div id="player-o-card" class="player-card player-o">
+              <div class="avatar"><span class="symbol-o-glow">O</span></div>
+              <div class="info">
+                <h3 id="player-o-name">Player O</h3>
+                <span class="active-marks">Active Marks: <span id="player-o-marks-count">0</span>/3</span>
+              </div>
+              <div class="next-to-remove-warning" id="o-warning-badge" style="display:none;">
+                <i class="fa-solid fa-triangle-exclamation"></i> Mark fading
+              </div>
+            </div>
+          </div>
+          
+          <div id="turn-banner" class="glass-panel turn-banner-box">
+            <span>Current Turn: </span><span id="current-turn-value" class="player-x-text">X</span>
+          </div>
+
+          <button id="btn-quit-game" class="btn btn-danger btn-full"><i class="fa-solid fa-door-open"></i> Return to Lobby</button>
+        </div>
+
+        <!-- Center Board Grid -->
+        <div class="board-container">
+          <div class="grid-wrapper">
+            <div class="board-grid" id="board">
+              <!-- 9 Grid Cells -->
+              <button class="grid-cell" id="cell-0" data-index="0"></button>
+              <button class="grid-cell" id="cell-1" data-index="1"></button>
+              <button class="grid-cell" id="cell-2" data-index="2"></button>
+              <button class="grid-cell" id="cell-3" data-index="3"></button>
+              <button class="grid-cell" id="cell-4" data-index="4"></button>
+              <button class="grid-cell" id="cell-5" data-index="5"></button>
+              <button class="grid-cell" id="cell-6" data-index="6"></button>
+              <button class="grid-cell" id="cell-7" data-index="7"></button>
+              <button class="grid-cell" id="cell-8" data-index="8"></button>
+            </div>
+            <!-- Winner Strike line overlay -->
+            <div class="winner-line" id="winner-line"></div>
+          </div>
+        </div>
+
+        <!-- Sidebar Right - Move logs -->
+        <div class="game-sidebar-right glass-panel">
+          <h3><i class="fa-solid fa-clock-rotate-left"></i> Move History</h3>
+          <div class="logs-container" id="logs-container">
+            <div class="empty-log-msg">No moves placed yet.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- WIN DIALOG MODAL -->
+  <div class="modal-overlay" id="win-modal">
+    <div class="modal-content glass-panel bounce-in">
+      <div class="trophy-icon"><i class="fa-solid fa-trophy"></i></div>
+      <h2 id="win-headline">Victory!</h2>
+      <p id="win-message">Player X has won the match!</p>
+      <div class="modal-buttons">
+        <button id="btn-modal-restart" class="btn btn-primary">Play Again</button>
+        <button id="btn-modal-quit" class="btn btn-secondary">Exit Lobby</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW TO PLAY DIALOG MODAL -->
+  <div class="modal-overlay" id="rules-modal">
+    <div class="modal-content rules-content glass-panel">
+      <h2>How to Play "Infinite Tic-Tac-Toe"</h2>
+      <div class="rules-body">
+        <ul>
+          <li><i class="fa-solid fa-check"></i> Standard 3x3 grid, players X and O take turns.</li>
+          <li><i class="fa-solid fa-check"></i> Maximum of <strong>3 active marks</strong> per player at any time.</li>
+          <li><i class="fa-solid fa-check"></i> When placing a <strong>4th mark</strong>, your <strong>oldest mark is automatically deleted</strong> from the board first.</li>
+          <li><i class="fa-solid fa-check"></i> <strong>No draws!</strong> The board never fills up. Play continues until 3 in a row is formed.</li>
+        </ul>
+      </div>
+      <button id="btn-rules-close" class="btn btn-primary">Got it!</button>
+    </div>
+  </div>
+
+  <!-- INCOMING MATCH INVITATION MODAL -->
+  <div class="modal-overlay" id="invite-modal">
+    <div class="modal-content glass-panel bounce-in">
+      <div class="trophy-icon" style="color: var(--color-x); filter: drop-shadow(0 0 10px var(--color-x-glow));"><i class="fa-solid fa-gamepad"></i></div>
+      <h2>Match Invitation!</h2>
+      <p id="invite-message"><strong>Player_123</strong> has requested to play a match with you.</p>
+      <div class="modal-buttons">
+        <button id="btn-invite-accept" class="btn btn-primary">
+          <i class="fa-solid fa-check"></i> Accept Match
+        </button>
+        <button id="btn-invite-reject" class="btn btn-danger">
+          <i class="fa-solid fa-xmark"></i> Reject Invite
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Javascript entry point -->
+  <script type="module" src="js/ui.js"></script>
+</body>
+</html>

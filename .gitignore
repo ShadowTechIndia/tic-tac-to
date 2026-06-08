@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 .env
 package-lock.json
+push_to_github.ps1
+download_git.ps1
+
